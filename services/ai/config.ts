@@ -29,21 +29,23 @@ export const hasElevenLabs = () =>
 export const hasLLM = () => hasOpenRouter() || hasGemini() || hasOpenAI();
 
 /** Which provider is active — handy for logging / debug badges. */
-export const activeProvider = (): "openrouter" | "gemini" | "openai" | "mock" =>
-  hasOpenRouter() ? "openrouter" : hasGemini() ? "gemini" : hasOpenAI() ? "openai" : "mock";
+export const activeProvider = (): "gemini" | "openrouter" | "openai" | "mock" =>
+  hasGemini() ? "gemini" : hasOpenRouter() ? "openrouter" : hasOpenAI() ? "openai" : "mock";
 
 /**
  * Returns the active chat/eval language model for the Vercel AI SDK.
- * Priority: OpenRouter → Gemini → OpenAI. Returns null in mock mode.
+ * Priority: Gemini → OpenRouter → OpenAI. Returns null in mock mode.
+ * (Gemini first: a standard Gemini key is more reliable than OpenRouter's
+ * shared free-model pool, which throttles under load.)
  */
 export function getLanguageModel(): LanguageModelV1 | null {
-  if (hasOpenRouter()) {
-    const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
-    return openrouter(openRouterModel()) as unknown as LanguageModelV1;
-  }
   if (hasGemini()) {
     const google = createGoogleGenerativeAI({ apiKey: geminiApiKey() });
     return google(geminiModel());
+  }
+  if (hasOpenRouter()) {
+    const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
+    return openrouter(openRouterModel()) as unknown as LanguageModelV1;
   }
   if (hasOpenAI()) {
     const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
