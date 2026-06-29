@@ -43,24 +43,38 @@ function detectIntent(text: string): keyof typeof BY_INTENT | null {
   return null;
 }
 
+// Formal scenarios (officer, bank teller) need on-topic, non-chatty continuations —
+// never small-talk like "how did that make you feel?".
+const FORMAL: string[] = [
+  "Thank you. How long do you plan to stay?",
+  "I see. And where will you be staying?",
+  "Understood. Do you have a return ticket booked?",
+  "Alright. Is this your first time visiting?",
+  "Okay. Do you have anything to declare?",
+  "Got it. Could I see your supporting documents, please?",
+];
+
 export function mockReply(scenario: Scenario, history: ChatMessage[]): string {
   const userMsgs = history.filter((m) => m.role === "user");
   const userTurns = userMsgs.length;
+  const formal = scenario.category === "Immigration";
 
   if (userTurns >= scenario.maxTurns - 1) {
-    return "This was a great chat — you sounded confident. Let's wrap up here. Nicely done!";
+    return formal
+      ? "Alright, everything looks in order. Enjoy your stay!"
+      : "This was a great chat — you sounded confident. Let's wrap up here. Nicely done!";
   }
 
   const lastAssistant = history.filter((m) => m.role === "assistant").pop()?.content ?? "";
   const last = userMsgs[userMsgs.length - 1]?.content.toLowerCase() ?? "";
 
-  // Build a candidate list: intent-matched variants first, then generic.
+  // Formal scenarios stay on-script; social ones use intent-matched small talk.
   const intent = detectIntent(last);
-  const pool = [...(intent ? BY_INTENT[intent] : []), ...GENERIC];
+  const pool = formal ? FORMAL : [...(intent ? BY_INTENT[intent] : []), ...GENERIC];
 
   // Pick the first candidate that isn't the line we just said — rotate by turn so
-  // repeated intents still advance through the variants.
+  // repeated turns still advance through the variants.
   const rotated = pool.slice(userTurns % pool.length).concat(pool.slice(0, userTurns % pool.length));
-  const next = rotated.find((line) => line !== lastAssistant) ?? GENERIC[userTurns % GENERIC.length];
+  const next = rotated.find((line) => line !== lastAssistant) ?? pool[userTurns % pool.length];
   return next;
 }

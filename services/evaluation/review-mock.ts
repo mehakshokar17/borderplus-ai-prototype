@@ -22,7 +22,14 @@ export function mockReview(scenario: Scenario, messages: ChatMessage[]): ReviewO
     };
   }
 
-  const evals = userReplies.map((r) => mockEvaluate(r, scenario));
+  // Evaluate each reply against the partner line it answered, so reciprocal-follow-up
+  // logic stays scenario-appropriate.
+  const userMsgs = messages.filter((m) => m.role === "user" && m.content.trim());
+  const evals = userMsgs.map((um) => {
+    const idx = messages.indexOf(um);
+    const prevPartner = [...messages.slice(0, idx)].reverse().find((m) => m.role === "assistant")?.content ?? "";
+    return mockEvaluate(um.content.trim(), scenario, prevPartner);
+  });
   const avg = (key: "score" | "intent" | "grammar" | "vocabulary" | "fluency" | "confidence") =>
     Math.round(evals.reduce((a, e) => a + e[key], 0) / evals.length);
 

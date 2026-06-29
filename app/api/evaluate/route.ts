@@ -29,10 +29,13 @@ export async function POST(req: Request) {
 
   const userReply = (body.userReply || "").trim();
   const history = Array.isArray(body.history) ? body.history : [];
+  // The partner line the user is responding to — lets the mock coach decide whether a
+  // reciprocal follow-up makes sense in this scenario.
+  const lastPartnerLine = [...history].reverse().find((m) => m.role === "assistant")?.content ?? "";
 
   const model = getLanguageModel();
   if (!hasLLM() || !model) {
-    const out = mockEvaluate(userReply, scenario);
+    const out = mockEvaluate(userReply, scenario, lastPartnerLine);
     const evaluation: Evaluation = { ...out, transcript: userReply };
     return NextResponse.json({ evaluation, mock: true });
   }
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ evaluation, mock: false });
   } catch (err) {
     console.error("evaluate error", err);
-    const out = mockEvaluate(userReply, scenario);
+    const out = mockEvaluate(userReply, scenario, lastPartnerLine);
     const evaluation: Evaluation = { ...out, transcript: userReply };
     return NextResponse.json({ evaluation, mock: true });
   }

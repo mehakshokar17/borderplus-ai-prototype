@@ -6,8 +6,16 @@ import type { EvaluationOutput } from "./schema";
  * Deterministic-ish heuristic evaluator used when no OPENAI_API_KEY is set.
  * It reacts to real properties of the user's text so the demo feels alive.
  */
-export function mockEvaluate(userReply: string, scenario: Scenario): EvaluationOutput {
+export function mockEvaluate(
+  userReply: string,
+  scenario: Scenario,
+  lastPartnerLine = ""
+): EvaluationOutput {
   const text = userReply.trim();
+  // Is a reciprocal "What about you?" follow-up actually appropriate here? Only in
+  // genuinely social exchanges where the partner asked about *you* — never with an
+  // immigration officer / formal context.
+  const reciprocal = reciprocalAppropriate(scenario, lastPartnerLine);
   const words = text ? text.split(/\s+/).filter(Boolean) : [];
   const wordCount = words.length;
   const hasQuestion = looksLikeQuestion(text);
@@ -34,14 +42,16 @@ export function mockEvaluate(userReply: string, scenario: Scenario): EvaluationO
   const tip = !text
     ? "Give it a try — even one sentence is a great start."
     : wordCount < 6
-    ? "Try a longer sentence with a bit more detail."
-    : !hasQuestion
-    ? "Add a follow-up question to keep the conversation flowing."
+    ? "Try a fuller answer with a bit more detail."
     : fillers > 1
     ? "Speak slightly slower and trim filler words like 'um' and 'like'."
+    : reciprocal && !hasQuestion
+    ? "Add a follow-up question to keep the conversation flowing."
+    : !reciprocal && wordCount < 12
+    ? "Add a specific detail so your answer feels complete and clear."
     : "Great length — now try varying your sentence openings.";
 
-  const betterResponse = improve(text, scenario, hasQuestion);
+  const betterResponse = improve(text, scenario, hasQuestion, reciprocal);
 
   return {
     score,
@@ -75,6 +85,15 @@ export function mockEvaluate(userReply: string, scenario: Scenario): EvaluationO
 // Common follow-up phrases users tack on without a question mark.
 const FOLLOW_UP_RE = /[\s,]*\b(what about you|how about you|what about yourself|how about yourself|and you|and yourself|and you\?*)\b[\s?.!]*$/i;
 
+// Partner lines that genuinely invite the user to turn the question back.
+const RECIPROCAL_INVITE = /\b(how are you|how's your|how is your|how are things|how are you (finding|doing|getting on)|how do you (know|find|like)|how was your|how's it going|how have you been|how's life|what about you|and yourself)\b/i;
+
+/** Reciprocal "What about you?" only fits social exchanges — never a formal/officer context. */
+function reciprocalAppropriate(scenario: Scenario, lastPartnerLine: string): boolean {
+  if (scenario.category === "Immigration") return false;
+  return RECIPROCAL_INVITE.test(lastPartnerLine || "");
+}
+
 /** True if the reply is a question — by punctuation OR common interrogative phrasing. */
 function looksLikeQuestion(text: string): boolean {
   if (/\?/.test(text)) return true;
@@ -84,10 +103,12 @@ function looksLikeQuestion(text: string): boolean {
   );
 }
 
-function improve(text: string, scenario: Scenario, hasQuestion: boolean): string {
-  if (!text) return scenario.conversationStarter.includes("?")
-    ? "It's going really well, thanks for asking! How about you?"
-    : "Thanks — I'm doing well. How has your week been?";
+function improve(text: string, scenario: Scenario, hasQuestion: boolean, reciprocal: boolean): string {
+  if (!text) {
+    return reciprocal
+      ? "It's going really well, thanks for asking! How about you?"
+      : "I'm doing well, thank you.";
+  }
 
   // If they tacked a follow-up onto the end (e.g. "...so far what about you"),
   // split it into its own clean question instead of duplicating one.
@@ -98,7 +119,7 @@ function improve(text: string, scenario: Scenario, hasQuestion: boolean): string
   let out = core.charAt(0).toUpperCase() + core.slice(1);
   if (!/[.!?]$/.test(out)) out += ".";
 
-  // Add a clean follow-up only if they attempted one or there's no question at all.
-  if (hadTrailingFollowUp || !hasQuestion) out += " What about you?";
+  // Only add a reciprocal follow-up when it actually fits the scenario.
+  if (reciprocal && (hadTrailingFollowUp || !hasQuestion)) out += " What about you?";
   return out;
 }
