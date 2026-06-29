@@ -7,6 +7,7 @@ import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useProgressStore } from "@/store/useProgressStore";
+import { useHydrated } from "@/hooks/useHydrated";
 
 const diffVariant = {
   Beginner: "success",
@@ -15,6 +16,7 @@ const diffVariant = {
 } as const;
 
 export function ScenarioCard({ scenario, index }: { scenario: Scenario; index: number }) {
+  const hydrated = useHydrated();
   const completed = useProgressStore((s) => s.completedScenarioIds.includes(scenario.id));
   const best = useProgressStore((s) => s.bestForScenario(scenario.id));
 
@@ -45,7 +47,7 @@ export function ScenarioCard({ scenario, index }: { scenario: Scenario; index: n
               Start <ArrowRight className="h-4 w-4" />
             </span>
           </div>
-          {(completed || best > 0) && (
+          {hydrated && (completed || best > 0) && (
             <div className="mt-4 flex items-center gap-2 border-t pt-4 text-xs">
               {completed && <Badge variant="success">Completed</Badge>}
               {best > 0 && <span className="text-muted-foreground">Best score · <b className="text-foreground">{best}</b></span>}
