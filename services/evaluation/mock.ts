@@ -10,7 +10,7 @@ export function mockEvaluate(userReply: string, scenario: Scenario): EvaluationO
   const text = userReply.trim();
   const words = text ? text.split(/\s+/).filter(Boolean) : [];
   const wordCount = words.length;
-  const hasQuestion = /\?/.test(text);
+  const hasQuestion = looksLikeQuestion(text);
   const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
   const avgSentenceLen = sentences.length ? wordCount / sentences.length : wordCount;
   const fillers = (text.match(/\b(um+|uh+|like|you know|kinda|sorta)\b/gi) || []).length;
@@ -72,12 +72,33 @@ export function mockEvaluate(userReply: string, scenario: Scenario): EvaluationO
   };
 }
 
+// Common follow-up phrases users tack on without a question mark.
+const FOLLOW_UP_RE = /[\s,]*\b(what about you|how about you|what about yourself|how about yourself|and you|and yourself|and you\?*)\b[\s?.!]*$/i;
+
+/** True if the reply is a question — by punctuation OR common interrogative phrasing. */
+function looksLikeQuestion(text: string): boolean {
+  if (/\?/.test(text)) return true;
+  return (
+    FOLLOW_UP_RE.test(text) ||
+    /\b(what about|how about|how are you|how's your|do you|are you|did you|have you|can you|could you|would you|will you)\b/i.test(text)
+  );
+}
+
 function improve(text: string, scenario: Scenario, hasQuestion: boolean): string {
   if (!text) return scenario.conversationStarter.includes("?")
     ? "It's going really well, thanks for asking! How about you?"
     : "Thanks — I'm doing well. How has your week been?";
-  let out = text.charAt(0).toUpperCase() + text.slice(1);
+
+  // If they tacked a follow-up onto the end (e.g. "...so far what about you"),
+  // split it into its own clean question instead of duplicating one.
+  const hadTrailingFollowUp = FOLLOW_UP_RE.test(text);
+  let core = text.replace(FOLLOW_UP_RE, "").trim();
+  if (!core) core = text.trim();
+
+  let out = core.charAt(0).toUpperCase() + core.slice(1);
   if (!/[.!?]$/.test(out)) out += ".";
-  if (!hasQuestion) out += " What about you?";
+
+  // Add a clean follow-up only if they attempted one or there's no question at all.
+  if (hadTrailingFollowUp || !hasQuestion) out += " What about you?";
   return out;
 }
